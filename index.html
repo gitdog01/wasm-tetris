@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Tetris WebAssembly</title>
+    <style>
+      canvas {
+        border: 1px solid black;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Go WebAssembly Tetris</h1>
+    <canvas id="gameCanvas" width="320" height="640"></canvas>
+    <script src="wasm_exec.js"></script>
+    <script>
+      const go = new Go();
+      WebAssembly.instantiateStreaming(
+        fetch("main.wasm"),
+        go.importObject
+      ).then((result) => {
+        go.run(result.instance);
+
+        // 키보드 이벤트 리스너 설정
+        document.addEventListener("keydown", function (event) {
+          switch (event.key) {
+            case "ArrowLeft":
+              moveLeft();
+              break;
+            case "ArrowRight":
+              moveRight();
+              break;
+            case "ArrowUp":
+              rotatePiece();
+              break;
+            case "ArrowDown":
+              moveDown();
+              break;
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
