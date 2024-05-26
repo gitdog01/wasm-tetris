@@ -36,6 +36,10 @@
             case "ArrowDown":
               moveDown();
               break;
+            case " ":
+              dropPiece();
+              event.preventDefault(); // 스페이스바 스크롤 방지
+              break;
           }
         });
       });

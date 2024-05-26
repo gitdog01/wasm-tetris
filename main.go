@@ -99,6 +99,8 @@ func main() {
 	js.Global().Set("moveLeft", js.FuncOf(moveLeft))
 	js.Global().Set("moveRight", js.FuncOf(moveRight))
 	js.Global().Set("rotatePiece", js.FuncOf(rotatePiece))
+	js.Global().Set("moveDown", js.FuncOf(moveDown))
+	js.Global().Set("dropPiece", js.FuncOf(dropPiece))
 
 	// JavaScript 이벤트 리스너
 	done := make(chan struct{}, 0)
@@ -133,6 +135,19 @@ func moveLeft(js.Value, []js.Value) interface{} {
 func moveRight(js.Value, []js.Value) interface{} {
 	if !checkCollision(currentPiece.x+1, currentPiece.y, currentPiece.shape) {
 		currentPiece.x++
+	}
+	drawBoard()
+	drawPiece(currentPiece)
+	return nil
+}
+
+func moveDown(js.Value, []js.Value) interface{} {
+	// 한 칸 아래로 이동
+	if !checkCollision(currentPiece.x, currentPiece.y+1, currentPiece.shape) {
+		currentPiece.y++
+	} else {
+		placePiece()
+		resetPiece()
 	}
 	drawBoard()
 	drawPiece(currentPiece)
@@ -176,6 +191,7 @@ func rotate(shape [4][4]int) [4][4]int {
 }
 
 func placePiece() {
+	// 현재 피스를 게임 보드에 배치
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
 			if currentPiece.shape[i][j] == 1 && currentPiece.y+i >= 0 {
@@ -183,27 +199,34 @@ func placePiece() {
 			}
 		}
 	}
+	// 가득 찬 줄을 제거
 	clearFullRows()
+	// 새로운 피스를 시작 위치에 배치
+	resetPiece()
 }
 
 func clearFullRows() {
-	for i := 0; i < height; i++ {
+	for y := 0; y < height; y++ {
 		full := true
-		for j := 0; j < width; j++ {
-			if board[i][j] == 0 {
+		for x := 0; x < width; x++ {
+			if board[y][x] == 0 {
 				full = false
 				break
 			}
 		}
 		if full {
-			for k := i; k > 0; k-- {
-				for j := 0; j < width; j++ {
-					board[k][j] = board[k-1][j]
+			// 해당 줄을 제거하고, 모든 윗 줄을 아래로 이동
+			for removeY := y; removeY > 0; removeY-- {
+				for x := 0; x < width; x++ {
+					board[removeY][x] = board[removeY-1][x]
 				}
 			}
-			for j := 0; j < width; j++ {
-				board[0][j] = 0
+			// 가장 위의 줄을 비워줍니다.
+			for x := 0; x < width; x++ {
+				board[0][x] = 0
 			}
+			// 같은 줄이 또 다시 가득 찼을 수 있으므로, 검사를 재실행
+			y--
 		}
 	}
 }
@@ -229,4 +252,16 @@ func drawPiece(piece *Piece) {
 			}
 		}
 	}
+}
+
+func dropPiece(js.Value, []js.Value) interface{} {
+	// 블록이 이동할 수 없을 때까지 반복적으로 내립니다.
+	for checkCollision(currentPiece.x, currentPiece.y+1, currentPiece.shape) == false {
+		currentPiece.y++
+	}
+	placePiece()
+	resetPiece()
+	drawBoard()
+	drawPiece(currentPiece)
+	return nil
 }
