@@ -14,3 +14,5 @@
 - 최종실행은 Scratch 이미지에서 합니다.
 - `docker build -t tetris .`
 - `docker run -p 8080:8080 tetris`
+
+## chat server 추가
