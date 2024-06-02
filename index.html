@@ -20,7 +20,7 @@
   </head>
   <body>
     <h1>Go WebAssembly Tetris</h1>
-    <canvas id="gameCanvas" width="320" height="640"></canvas>
+    <canvas id="gameCanvas" width="512" height="640"></canvas>
     <script src="wasm_exec.js"></script>
     <script>
       const go = new Go();
@@ -48,6 +48,9 @@
             case " ":
               dropPiece();
               event.preventDefault(); // 스페이스바 스크롤 방지
+              break;
+            case "Shift":
+              holdCurrentPiece(); // 홀드 기능 추가
               break;
           }
         });

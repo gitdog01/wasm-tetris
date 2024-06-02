@@ -1,15 +1,17 @@
 package main
 
 import (
+	"math/rand"
 	"strconv"
 	"syscall/js"
 	"time"
 )
 
 const (
-	width  = 10
-	height = 20
-	size   = 32
+	width          = 10
+	height         = 20
+	size           = 32
+	sidePanelWidth = 6 * size // 사이드 패널의 너비
 )
 
 var (
@@ -17,6 +19,8 @@ var (
 	ctx          js.Value
 	board        [height][width]int
 	currentPiece *Piece
+	holdPiece    *Piece
+	nextPieces   []Piece
 	gameOver     bool
 	score        int
 	pieces       = []Piece{
@@ -95,6 +99,7 @@ func main() {
 			if !gameOver {
 				movePieceDown()
 				drawBoard()
+				drawSidePanel()
 				drawPiece(currentPiece)
 			}
 		}
@@ -106,22 +111,48 @@ func main() {
 	js.Global().Set("rotatePiece", js.FuncOf(rotatePiece))
 	js.Global().Set("moveDown", js.FuncOf(moveDown))
 	js.Global().Set("dropPiece", js.FuncOf(dropPiece))
+	js.Global().Set("holdCurrentPiece", js.FuncOf(holdCurrentPiece)) // 홀드 기능 추가
 
 	// JavaScript 이벤트 리스너
 	done := make(chan struct{}, 0)
 	<-done
 }
 
+func init() {
+	nextPieces = make([]Piece, 5)
+	for i := 0; i < 5; i++ {
+		nextPieces[i] = pieces[rand.Intn(len(pieces))]
+	}
+}
+
 func resetPiece() {
-	// 무작위로 블록 선택
-	currentPiece = &pieces[time.Now().UnixNano()%int64(len(pieces))]
+	currentPiece = &nextPieces[0]
+	updateNextPieces()
 	currentPiece.x = (width - currentPiece.width) / 2
 	currentPiece.y = 0
 
-	// 블록이 시작 위치에 있을 때 충돌이 발생하면 게임 오버
 	if checkCollision(currentPiece.x, currentPiece.y, currentPiece.shape) {
 		gameOver = true
 	}
+}
+
+func holdCurrentPiece(this js.Value, p []js.Value) interface{} {
+	if holdPiece == nil {
+		holdPiece = currentPiece
+		resetPiece()
+	} else {
+		holdPiece, currentPiece = currentPiece, holdPiece
+		currentPiece.x = (width - currentPiece.width) / 2
+		currentPiece.y = 0
+	}
+	drawBoard()
+	drawSidePanel()
+	drawPiece(currentPiece)
+	return nil
+}
+
+func updateNextPieces() {
+	nextPieces = append(nextPieces[1:], pieces[rand.Intn(len(pieces))])
 }
 
 func movePieceDown() {
@@ -133,25 +164,27 @@ func movePieceDown() {
 	}
 }
 
-func moveLeft(js.Value, []js.Value) interface{} {
+func moveLeft(this js.Value, p []js.Value) interface{} {
 	if !checkCollision(currentPiece.x-1, currentPiece.y, currentPiece.shape) {
 		currentPiece.x--
 	}
 	drawBoard()
+	drawSidePanel()
 	drawPiece(currentPiece)
 	return nil
 }
 
-func moveRight(js.Value, []js.Value) interface{} {
+func moveRight(this js.Value, p []js.Value) interface{} {
 	if !checkCollision(currentPiece.x+1, currentPiece.y, currentPiece.shape) {
 		currentPiece.x++
 	}
 	drawBoard()
+	drawSidePanel()
 	drawPiece(currentPiece)
 	return nil
 }
 
-func moveDown(js.Value, []js.Value) interface{} {
+func moveDown(this js.Value, p []js.Value) interface{} {
 	// 한 칸 아래로 이동
 	if !checkCollision(currentPiece.x, currentPiece.y+1, currentPiece.shape) {
 		currentPiece.y++
@@ -160,16 +193,18 @@ func moveDown(js.Value, []js.Value) interface{} {
 		resetPiece()
 	}
 	drawBoard()
+	drawSidePanel()
 	drawPiece(currentPiece)
 	return nil
 }
 
-func rotatePiece(js.Value, []js.Value) interface{} {
+func rotatePiece(this js.Value, p []js.Value) interface{} {
 	rotated := rotate(currentPiece.shape)
 	if !checkCollision(currentPiece.x, currentPiece.y, rotated) {
 		currentPiece.shape = rotated
 	}
 	drawBoard()
+	drawSidePanel()
 	drawPiece(currentPiece)
 	return nil
 }
@@ -241,11 +276,10 @@ func clearFullRows() {
 }
 
 func drawBoard() {
-	ctx.Call("clearRect", 0, 0, canvas.Get("width").Int(), canvas.Get("height").Int())
+	ctx.Call("clearRect", 0, 0, canvas.Get("width").Int()-sidePanelWidth, canvas.Get("height").Int())
 	ctx.Set("fillStyle", "#f0f0f0")
-	ctx.Call("fillRect", 0, 0, canvas.Get("width").Int(), canvas.Get("height").Int())
+	ctx.Call("fillRect", 0, 0, canvas.Get("width").Int()-sidePanelWidth, canvas.Get("height").Int())
 
-	// 각 칸마다 얇은 회색 선 그리기
 	ctx.Set("strokeStyle", "#d3d3d3")
 	ctx.Set("lineWidth", 1)
 	for i := 0; i < height; i++ {
@@ -258,14 +292,56 @@ func drawBoard() {
 		}
 	}
 
-	ctx.Set("font", "24px serif")
-	ctx.Set("fillStyle", "black")
-	ctx.Call("fillText", "Score: "+strconv.Itoa(score), 10, 30) // 점수 위치를 위로 이동
-
 	if gameOver {
 		ctx.Set("font", "48px serif")
 		ctx.Set("fillStyle", "red")
-		ctx.Call("fillText", "Game Over", canvas.Get("width").Int()/2-100, canvas.Get("height").Int()/2)
+		ctx.Call("fillText", "Game Over", (canvas.Get("width").Int()-sidePanelWidth)/2-100, canvas.Get("height").Int()/2)
+	}
+}
+
+func drawSidePanel() {
+	ctx.Call("clearRect", canvas.Get("width").Int()-sidePanelWidth, 0, sidePanelWidth, canvas.Get("height").Int())
+	ctx.Set("fillStyle", "#ffffff")
+	ctx.Call("fillRect", canvas.Get("width").Int()-sidePanelWidth, 0, sidePanelWidth, canvas.Get("height").Int())
+
+	ctx.Set("font", "24px serif")
+	ctx.Set("fillStyle", "black")
+	ctx.Call("fillText", "Score: "+strconv.Itoa(score), canvas.Get("width").Int()-sidePanelWidth+10, 30)
+
+	drawNextPieces()
+	drawHoldPiece()
+}
+
+func drawNextPieces() {
+	for i, piece := range nextPieces {
+		xOffset := canvas.Get("width").Int() - sidePanelWidth + 10
+		yOffset := 50 + i*4*size
+		if i == 0 {
+			yOffset = 50 // 첫 번째 블록은 크게 표시
+			drawMiniPiece(piece, xOffset, yOffset, size)
+		} else {
+			yOffset += size // 두 번째 블록부터는 크기를 줄임
+			drawMiniPiece(piece, xOffset, yOffset, size/2)
+		}
+	}
+}
+
+func drawMiniPiece(piece Piece, xOffset, yOffset, blockSize int) {
+	ctx.Set("fillStyle", "gray")
+	for i := 0; i < 4; i++ {
+		for j := 0; j < 4; j++ {
+			if piece.shape[i][j] == 1 {
+				ctx.Call("fillRect", xOffset+j*blockSize, yOffset+i*blockSize, blockSize, blockSize)
+			}
+		}
+	}
+}
+
+func drawHoldPiece() {
+	if holdPiece != nil {
+		xOffset := canvas.Get("width").Int() - sidePanelWidth + 10
+		yOffset := 250
+		drawMiniPiece(*holdPiece, xOffset, yOffset, size)
 	}
 }
 
@@ -280,7 +356,7 @@ func drawPiece(piece *Piece) {
 	}
 }
 
-func dropPiece(js.Value, []js.Value) interface{} {
+func dropPiece(this js.Value, p []js.Value) interface{} {
 	// 블록이 이동할 수 없을 때까지 반복적으로 내립니다.
 	for checkCollision(currentPiece.x, currentPiece.y+1, currentPiece.shape) == false {
 		currentPiece.y++
@@ -288,6 +364,7 @@ func dropPiece(js.Value, []js.Value) interface{} {
 	placePiece()
 	resetPiece()
 	drawBoard()
+	drawSidePanel()
 	drawPiece(currentPiece)
 	return nil
 }
