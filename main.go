@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strconv"
 	"syscall/js"
 	"time"
 )
@@ -16,6 +17,8 @@ var (
 	ctx          js.Value
 	board        [height][width]int
 	currentPiece *Piece
+	gameOver     bool
+	score        int
 	pieces       = []Piece{
 		// I
 		{0, [4][4]int{
@@ -89,9 +92,11 @@ func main() {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	go func() {
 		for range ticker.C {
-			movePieceDown()
-			drawBoard()
-			drawPiece(currentPiece)
+			if !gameOver {
+				movePieceDown()
+				drawBoard()
+				drawPiece(currentPiece)
+			}
 		}
 	}()
 
@@ -112,6 +117,11 @@ func resetPiece() {
 	currentPiece = &pieces[time.Now().UnixNano()%int64(len(pieces))]
 	currentPiece.x = (width - currentPiece.width) / 2
 	currentPiece.y = 0
+
+	// 블록이 시작 위치에 있을 때 충돌이 발생하면 게임 오버
+	if checkCollision(currentPiece.x, currentPiece.y, currentPiece.shape) {
+		gameOver = true
+	}
 }
 
 func movePieceDown() {
@@ -201,8 +211,6 @@ func placePiece() {
 	}
 	// 가득 찬 줄을 제거
 	clearFullRows()
-	// 새로운 피스를 시작 위치에 배치
-	resetPiece()
 }
 
 func clearFullRows() {
@@ -215,6 +223,7 @@ func clearFullRows() {
 			}
 		}
 		if full {
+			score += 100 // 줄 하나를 지울 때마다 100점 추가
 			// 해당 줄을 제거하고, 모든 윗 줄을 아래로 이동
 			for removeY := y; removeY > 0; removeY-- {
 				for x := 0; x < width; x++ {
@@ -240,6 +249,15 @@ func drawBoard() {
 				ctx.Call("fillRect", j*size, i*size, size, size)
 			}
 		}
+	}
+	ctx.Set("font", "24px serif")
+	ctx.Set("fillStyle", "black")
+	ctx.Call("fillText", "Score: "+strconv.Itoa(score), 10, 30) // 점수 위치를 위로 이동
+
+	if gameOver {
+		ctx.Set("font", "48px serif")
+		ctx.Set("fillStyle", "red")
+		ctx.Call("fillText", "Game Over", canvas.Get("width").Int()/2-100, canvas.Get("height").Int()/2)
 	}
 }
 
