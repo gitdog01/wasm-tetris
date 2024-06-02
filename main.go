@@ -242,14 +242,22 @@ func clearFullRows() {
 
 func drawBoard() {
 	ctx.Call("clearRect", 0, 0, canvas.Get("width").Int(), canvas.Get("height").Int())
-	ctx.Set("fillStyle", "black")
+	ctx.Set("fillStyle", "#f0f0f0")
+	ctx.Call("fillRect", 0, 0, canvas.Get("width").Int(), canvas.Get("height").Int())
+
+	// 각 칸마다 얇은 회색 선 그리기
+	ctx.Set("strokeStyle", "#d3d3d3")
+	ctx.Set("lineWidth", 1)
 	for i := 0; i < height; i++ {
 		for j := 0; j < width; j++ {
+			ctx.Call("strokeRect", j*size, i*size, size, size)
 			if board[i][j] == 1 {
-				ctx.Call("fillRect", j*size, i*size, size, size)
+				ctx.Set("fillStyle", "black")
+				ctx.Call("fillRect", j*size+1, i*size+1, size-2, size-2)
 			}
 		}
 	}
+
 	ctx.Set("font", "24px serif")
 	ctx.Set("fillStyle", "black")
 	ctx.Call("fillText", "Score: "+strconv.Itoa(score), 10, 30) // 점수 위치를 위로 이동
@@ -266,7 +274,7 @@ func drawPiece(piece *Piece) {
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
 			if piece.shape[i][j] == 1 {
-				ctx.Call("fillRect", (piece.x+j)*size, (piece.y+i)*size, size, size)
+				ctx.Call("fillRect", (piece.x+j)*size+1, (piece.y+i)*size+1, size-2, size-2)
 			}
 		}
 	}
